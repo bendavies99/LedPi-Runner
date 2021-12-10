@@ -2,11 +2,14 @@ const path = require('path');
 const fs = require('fs');
 const exec = require('child_process').exec;
 const runConfig = require('./runConfig.json');
-const { kill } = require('process');
-
 
 //Get the directory from the cli argument
 const dir = runConfig.location;
+
+if (!dir) {
+  throw Error("Please enter a directory of install Location");
+}
+
 const javaBin = runConfig.javaHome;
 
 console.log(`Loading Data for LedPi Project inside: ${dir}`);
@@ -38,9 +41,9 @@ const runCommand = async (cmd, ...params) => await (new Promise((res, rej) => {
   console.log(`Java Version Regexed: ${jvRegexed}`);
   if (/11\.+/.test(jvRegexed)) {
     console.log("Correct J Version");
-    const systemArgs = ['-Dlp.trace=true', '-Dlp.debugDisplay=true'];
+    const systemArgs = runConfig.systemArgs.map(s => '-D' + s.join("=")) || [];
     const jArgs = [`-classpath ${classPath}`, ...systemArgs, 'net.bdavies.app.Application'];
-    startServer(24532, javaCmd, jArgs);
+    startServer(runConfig.shutdownPort || 24621, javaCmd, jArgs);
   } else {
     console.error("Cannot run because J version needs to be >= 11");
   }
@@ -61,8 +64,10 @@ const startServer = (stopPort, cmd, args) => {
     console.log(err);
   });
   serverProcess.on('exit', code => {
-      console.log('Light server stopped with code: ' + code);
+    console.log('Light server stopped with code: ' + code);
+    try {
       socketItem.close();
+    } catch (e) { process.exit(0); }
   });
   if (serverProcess.pid) {
     console.log("Server Started: " + serverProcess.pid);
@@ -72,7 +77,9 @@ const startServer = (stopPort, cmd, args) => {
       console.log("Handling Ctrl+C\n Stopping light server");
       kill(serverProcess.pid, 'SIGINT', err => {
         console.log("Stopped the Light Server");
-        socketItem.close();
+        try {
+          socketItem.close();
+        } catch (e) { process.exit(0); }
         if (err) {
           console.error("Something went wrong", err);
         }
@@ -82,7 +89,9 @@ const startServer = (stopPort, cmd, args) => {
       if (msg.toString().toLowerCase() === 'doit') {
         kill(serverProcess.pid, 'SIGINT', err => {
           console.log("Stopped the Light Server");
-          socketItem.close();
+          try {
+            socketItem.close();
+          } catch (e) { process.exit(0); }
           if (err) {
             console.error("Something went wrong", err);
           }
